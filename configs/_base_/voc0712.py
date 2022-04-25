@@ -1,5 +1,5 @@
 # Please change the dataset directory to your actual directory
-data_root = '$YOUR_DATASET_PATH/VOCdevkit/'
+data_root = '/home/darynarr/university/diploma/MI-AOD/data/VOCdevkit/'
 
 # dataset settings
 dataset_type = 'VOCDataset'
