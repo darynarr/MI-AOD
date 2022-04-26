@@ -27,7 +27,7 @@ def calculate_uncertainty(cfg, model, data_loader, return_box=False):
             y_head_f_2 = torch.cat(y_head_f_2, 0)
             y_head_f_1 = nn.Sigmoid()(y_head_f_1)
             y_head_f_2 = nn.Sigmoid()(y_head_f_2)
-            loss_l2_p = (y_head_f_1 - y_head_f_2).pow(2)
+            loss_l2_p = y_head_f_1 * torch.log(y_head_f_1 / y_head_f_2)
             uncertainty_all_N = loss_l2_p.mean(dim=1)
             arg = uncertainty_all_N.argsort()
             uncertainty_single = uncertainty_all_N[arg[-cfg.k:]].mean()

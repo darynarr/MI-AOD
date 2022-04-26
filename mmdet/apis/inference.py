@@ -120,7 +120,7 @@ def inference_detector(model, img):
         y_head_f_2 = torch.cat(y_head_f_2, 0)
         y_head_f_1 = torch.nn.Sigmoid()(y_head_f_1)
         y_head_f_2 = torch.nn.Sigmoid()(y_head_f_2)
-        loss_l2_p = (y_head_f_1 - y_head_f_2).pow(2)
+        loss_l2_p = y_head_f_1 * torch.log(y_head_f_1 / y_head_f_2)
         uncertainty_all_N = loss_l2_p.mean(dim=1)
         arg = uncertainty_all_N.argsort()
         uncertainty_single = uncertainty_all_N[arg[-cfg.k:]].mean()
@@ -172,3 +172,13 @@ def show_result_pyplot(model, img, result, score_thr=0.3, fig_size=(15, 10)):
     plt.figure(figsize=fig_size)
     plt.imshow(mmcv.bgr2rgb(img))
     plt.show()
+
+
+# if __name__ == '__main__':
+#     model = init_detector(
+#         './configs/MIAOD.py', checkpoint='./work_dirs/MI-AOD/20220422_201426/epoch_3.pth', device='cuda:0')
+#     results = {'img': './data/VOCdevkit/VOC2012/JPEGImages/2007_000027.jpg'}
+#     img_loader = LoadImage()
+#     img = img_loader(results)
+#     res = inference_detector(model, img['img'])
+#     k=0
