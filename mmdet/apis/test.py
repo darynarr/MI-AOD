@@ -11,6 +11,11 @@ from mmcv.runner import get_dist_info
 from mmdet.core import encode_mask_results, tensor2imgs
 from mmdet.models.detectors.base import *
 
+def cosine_distance(x1, x2=None, eps=1e-8):
+    x2 = x1 if x2 is None else x2
+    w1 = x1.norm(p=2, dim=1, keepdim=True)
+    w2 = w1 if x2 is x1 else x2.norm(p=2, dim=1, keepdim=True)
+    return 1 - torch.mm(x1, x2.t()) / (w1 * w2.t()).clamp(min=eps)
 
 def calculate_uncertainty(cfg, model, data_loader, return_box=False):
     model.eval()
@@ -27,7 +32,8 @@ def calculate_uncertainty(cfg, model, data_loader, return_box=False):
             y_head_f_2 = torch.cat(y_head_f_2, 0)
             y_head_f_1 = nn.Sigmoid()(y_head_f_1)
             y_head_f_2 = nn.Sigmoid()(y_head_f_2)
-            loss_l2_p = y_head_f_1 * torch.log(y_head_f_1 / y_head_f_2)
+            # loss_l2_p = y_head_f_1 * torch.log(y_head_f_1 / y_head_f_2)
+            loss_l2_p = -(y_head_f_1 * torch.log(y_head_f_2) + (1-y_head_f_1) * torch.log(1-y_head_f_2))
             uncertainty_all_N = loss_l2_p.mean(dim=1)
             arg = uncertainty_all_N.argsort()
             uncertainty_single = uncertainty_all_N[arg[-cfg.k:]].mean()

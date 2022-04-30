@@ -120,7 +120,7 @@ def inference_detector(model, img):
         y_head_f_2 = torch.cat(y_head_f_2, 0)
         y_head_f_1 = torch.nn.Sigmoid()(y_head_f_1)
         y_head_f_2 = torch.nn.Sigmoid()(y_head_f_2)
-        loss_l2_p = y_head_f_1 * torch.log(y_head_f_1 / y_head_f_2)
+        loss_l2_p = -(y_head_f_1 * torch.log(y_head_f_2) + (1 - y_head_f_1) * torch.log(1 - y_head_f_2))
         uncertainty_all_N = loss_l2_p.mean(dim=1)
         arg = uncertainty_all_N.argsort()
         uncertainty_single = uncertainty_all_N[arg[-cfg.k:]].mean()
