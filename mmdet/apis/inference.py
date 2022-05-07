@@ -120,8 +120,42 @@ def inference_detector(model, img):
         y_head_f_2 = torch.cat(y_head_f_2, 0)
         y_head_f_1 = torch.nn.Sigmoid()(y_head_f_1)
         y_head_f_2 = torch.nn.Sigmoid()(y_head_f_2)
-        loss_l2_p = (y_head_f_1 - y_head_f_2).pow(2)
-        uncertainty_all_N = loss_l2_p.mean(dim=1)
+        if cfg.uncertainty_type == 'l2_norm':
+            loss_p = (y_head_f_1 - y_head_f_2).pow(2)
+            uncertainty_all_N = loss_p.mean(dim=1)
+        elif cfg.uncertainty_type == 'kl_divergence':
+            loss_p = y_head_f_1 * torch.log(y_head_f_1 / y_head_f_2)
+            # uncertainty_all_N = loss_p.sum(dim=1)
+            uncertainty_all_N = loss_p.mean(dim=1)
+        elif cfg.uncertainty_type == 'cross_entropy':
+            loss_p = -(y_head_f_1 * torch.log(y_head_f_2) + (1 - y_head_f_1) * torch.log(1 - y_head_f_2))
+            # uncertainty_all_N = loss_p.sum(dim=1)
+            uncertainty_all_N = loss_p.mean(dim=1)
+        elif cfg.uncertainty_type == 'js_divergence':
+            kl_diver = lambda p, q: p * torch.log(p / q)
+            loss_p = 0.5 * (kl_diver(y_head_f_1, (y_head_f_1 + y_head_f_2) / 2))
+            loss_p += 0.5 * (kl_diver(y_head_f_2, (y_head_f_1 + y_head_f_2) / 2))
+            # uncertainty_all_N = loss_p.sum(dim=1)
+            uncertainty_all_N = loss_p.mean(dim=1)
+        elif cfg.uncertainty_type == 'focal_loss':
+            alpha, gamma = 0.25, 2.
+            p_t = (y_head_f_1 * y_head_f_2) + ((1 - y_head_f_1) * (1 - y_head_f_2))
+            alpha_factor = 1.
+            modulating_factor = 1.
+            ce = -(y_head_f_1 * torch.log(y_head_f_2) + (1 - y_head_f_1) * torch.log(1 - y_head_f_2))
+            # ce = loss_p.sum(dim=1)
+            if alpha:
+                alpha_factor = y_head_f_1 * alpha + (1 - y_head_f_1) * (1 - alpha)
+            if gamma:
+                modulating_factor = (1. - p_t).pow(gamma)
+            # uncertainty_all_N = (alpha_factor * modulating_factor * ce).sum(dim=1)
+            uncertainty_all_N = (alpha_factor * modulating_factor * ce).mean(dim=1)
+        else:
+            uncertainty_types = [
+                'l2_norm', 'kl_divergence', 'cross_entropy', 'js_divergence', 'focal_loss']
+            raise ValueError(
+                f'{cfg.uncertainty_type} is not valid uncertainty_type. '
+                f'List of possible uncertainty_type: {uncertainty_types}. Change it in config parameters.')
         arg = uncertainty_all_N.argsort()
         uncertainty_single = uncertainty_all_N[arg[-cfg.k:]].mean()
     return result, uncertainty_single
@@ -172,3 +206,14 @@ def show_result_pyplot(model, img, result, score_thr=0.3, fig_size=(15, 10)):
     plt.figure(figsize=fig_size)
     plt.imshow(mmcv.bgr2rgb(img))
     plt.show()
+
+
+
+# if __name__ == '__main__':
+#     model = init_detector(
+#         './configs/MIAOD.py', checkpoint='./work_dirs/MI-AOD/20220422_201426/epoch_3.pth', device='cuda:0')
+#     results = {'img': './data/VOCdevkit/VOC2012/JPEGImages/2007_000027.jpg'}
+#     img_loader = LoadImage()
+#     img = img_loader(results)
+#     res = inference_detector(model, img['img'])
+#     k=0
