@@ -1,5 +1,5 @@
 # Please change the dataset directory to your actual directory
-data_root = '/home/darynarr/university/diploma/MI-AOD/data/VOCdevkit/'
+data_root = '/mnt/storage/university/diploma/MI-AOD/data/VOCdevkit/'
 
 _base_ = [
     './_base_/retinanet_r50_fpn.py', './_base_/voc0712.py',
