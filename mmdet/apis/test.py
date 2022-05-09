@@ -27,8 +27,42 @@ def calculate_uncertainty(cfg, model, data_loader, return_box=False):
             y_head_f_2 = torch.cat(y_head_f_2, 0)
             y_head_f_1 = nn.Sigmoid()(y_head_f_1)
             y_head_f_2 = nn.Sigmoid()(y_head_f_2)
-            loss_l2_p = (y_head_f_1 - y_head_f_2).pow(2)
-            uncertainty_all_N = loss_l2_p.mean(dim=1)
+            if cfg.uncertainty_type == 'l2_norm':
+                loss_p = (y_head_f_1 - y_head_f_2).pow(2)
+                uncertainty_all_N = loss_p.mean(dim=1)
+            elif cfg.uncertainty_type == 'kl_divergence':
+                loss_p = y_head_f_1 * torch.log(y_head_f_1 / y_head_f_2)
+                # uncertainty_all_N = loss_p.sum(dim=1)
+                uncertainty_all_N = loss_p.mean(dim=1)
+            elif cfg.uncertainty_type == 'cross_entropy':
+                loss_p = -(y_head_f_1 * torch.log(y_head_f_2) + (1 - y_head_f_1) * torch.log(1 - y_head_f_2))
+                # uncertainty_all_N = loss_p.sum(dim=1)
+                uncertainty_all_N = loss_p.mean(dim=1)
+            elif cfg.uncertainty_type == 'js_divergence':
+                kl_diver = lambda p, q: p * torch.log(p / q)
+                loss_p = 0.5 * (kl_diver(y_head_f_1, (y_head_f_1 + y_head_f_2) / 2))
+                loss_p += 0.5 * (kl_diver(y_head_f_2, (y_head_f_1 + y_head_f_2) / 2))
+                # uncertainty_all_N = loss_p.sum(dim=1)
+                uncertainty_all_N = loss_p.mean(dim=1)
+            elif cfg.uncertainty_type == 'focal_loss':
+                alpha, gamma = 0.25, 2.
+                p_t = (y_head_f_1 * y_head_f_2) + ((1 - y_head_f_1) * (1 - y_head_f_2))
+                alpha_factor = 1.
+                modulating_factor = 1.
+                ce = -(y_head_f_1 * torch.log(y_head_f_2) + (1 - y_head_f_1) * torch.log(1 - y_head_f_2))
+                # ce = loss_p.sum(dim=1)
+                if alpha:
+                    alpha_factor = y_head_f_1 * alpha + (1 - y_head_f_1) * (1 - alpha)
+                if gamma:
+                    modulating_factor = (1. - p_t).pow(gamma)
+                # uncertainty_all_N = (alpha_factor * modulating_factor * ce).sum(dim=1)
+                uncertainty_all_N = (alpha_factor * modulating_factor * ce).mean(dim=1)
+            else:
+                uncertainty_types = [
+                    'l2_norm', 'kl_divergence', 'cross_entropy', 'js_divergence', 'focal_loss']
+                raise ValueError(
+                    f'{cfg.uncertainty_type} is not valid uncertainty_type. '
+                    f'List of possible uncertainty_type: {uncertainty_types}. Change it in config parameters.')
             arg = uncertainty_all_N.argsort()
             uncertainty_single = uncertainty_all_N[arg[-cfg.k:]].mean()
             uncertainty[i] = uncertainty_single
